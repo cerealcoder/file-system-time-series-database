@@ -1,0 +1,26 @@
+{
+  "name": "filesystem-timeseries-db",
+  "version": "0.0.01",
+  "repository": "https://github.com/cerealcoder/filesystem-timeseries-database",
+  "description": "A simple wrapper to get/set time-series data from a file system that is at least NFS v3 compatible",
+  "main": "filesystem-timeseries-db.js",
+  "scripts": {
+    "test": "node_modules/tape/bin/tape"
+  },
+  "author": "pszabop",
+  "license": "ISC",
+  "dependencies": {
+    "bluebird": "^3.7.2",
+    "mkdirp": "^1.0.4",
+    "node-gzip": "^1.1.2"
+  },
+  "peerDependencies": {
+    "underscore": "^1.9.1"
+  },
+  "devDependencies": {
+    "tape": "^4.10.1",
+    "tape-promise": "^4.0.0",
+    "underscore": "^1.9.1",
+    "random-js": "^2.1.0"
+  }
+}

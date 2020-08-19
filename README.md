@@ -51,6 +51,25 @@ handle is passed into this library so it doesn't really care.
 1. General usage:
 
         const fileSystem = fileHandle;
-        const dbInstance = Object.create(FsTimeSeriesDB).setOptions({fileSystem: fileSystem});
+        const dbInstance = Object.create(FsTimeSeriesDB).setOptions({rootPath: rootPath});
+
+
+# Testing
+## Interactive Testing
+1. Run Docker Compose:
+
+        docker-compose run app  /bin/bash
+
+1. Navigate to the directory where the source code is located:
+
+        cd /home/code       
+
+1. Run NPM install
+
+        npm install
+        
+1. Run the unit tests
+
+        npm test test/*.js
 
 
