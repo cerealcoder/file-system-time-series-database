@@ -31,6 +31,11 @@ FsTimeSeriesDB.verifyOptions = function(options) {
 };
 
 /**
+ * Note:  Events are stored as a file that has epochTimeMillisec as the name of the file.
+ * This means you can only *put* about 65000 discrete events per day.
+ * Best practice is to write an entire day's worth of data and store it under the first
+ * epochTimeMillisec for that day.  This might require *you* to do the read-modify-write 
+ * if you can't get data from your data source in one day chunks.
  *
  */
 FsTimeSeriesDB.putEvent = async function(key, event) {
@@ -42,6 +47,7 @@ FsTimeSeriesDB.putEvent = async function(key, event) {
   assert(key.epochTimeMilliSec, 'key.epochTimeMillisec is required');
 
   if (event.epochTimeMilliSec === undefined) {
+    // epochTimeMillisec must be at every level of an event heirarchy
     event.epochTimeMilliSec = key.epochTimeMilliSec;
   }
   let marshalledEvent =  { event: event, epochTimeMilliSec: event.epochTimeMilliSec };
@@ -50,12 +56,14 @@ FsTimeSeriesDB.putEvent = async function(key, event) {
     // each element of the array must look like
     // a standardized event so that unmarshalling
     // of arrays in getEvents works properly
-    marshalledEvent = event.map(el => {
+    const marshalledEvents = event.map(el => {
       if (el.epochTimeMilliSec === undefined) {
         el.epochTimeMilliSec = key.epochTimeMilliSec;
       }
       return el;
     });
+    // marshal same way as solitary event
+    marshalledEvent = { event: marshalledEvents, epochTimeMilliSec: key.epochTimeMilliSec }
   }
 
   const evtCompressed = await gzip(JSON.stringify(marshalledEvent));
@@ -103,7 +111,7 @@ FsTimeSeriesDB.getEvents = async function(key) {
 
   const uncompressedEvents = await Promise.map(files, async (filename) => {
     const time = filename.substr(0, filename.indexOf('.'));
-    if (time >= key.startTime && time < key.endTime) {
+    if (time >= key.startTime && time <= key.endTime) {
       const data = await fs.readFile(`${filePath}/${filename}`);
       if (data) {
         const eventUnzipped = await ungzip(data);
@@ -114,14 +122,16 @@ FsTimeSeriesDB.getEvents = async function(key) {
   }).filter(el => {
     return (el != null);
   });
-  console.log(uncompressedEvents);
+  //console.log(uncompressedEvents);
 
   return uncompressedEvents.reduce((acc, el) => {
     // flatten multiple array results down to one big array
     if (Array.isArray(el.event)) {
-      Array.prototype.push.apply(acc, el.event)
+      // @see https://stackoverflow.com/questions/10865025/merge-flatten-an-array-of-arrays
+      //Array.prototype.push.apply(acc, el)
+      return acc.concat(el.event);
     } else {
-      acc.push(el);
+      acc.push(el.event);
     }
     return acc;
   },[]);

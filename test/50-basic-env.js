@@ -53,6 +53,6 @@ test('put and get a time series event', async function(t) {
   //console.log(getResult);
   t.equal(getResult.length, 1, 'one item put, one item queried');
   t.equal(getResult[0].epochTimeMilliSec, startTime, 'event time was the same as was put');
-  t.ok(_.isEqual(getResult[0].event, event), 'event contents queried is same as was put');
+  t.ok(_.isEqual(getResult[0], event), 'event contents queried is same as was put');
 
 });
