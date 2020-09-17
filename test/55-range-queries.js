@@ -117,49 +117,82 @@ test('put and get a multiple time series events at different times', async funct
 
 });
 
-test('push an array of events and make sure we can query it', async function(t) {
+test('Make sure we can query data points at the end of files', async function(t) {
   const dbInstance = Object.create(FsTimeSeriesDB).setOptions({rootPath: rootPath});
 
   const userId = random.string(16);
   const group1 = 'eventType';
   const group2 = 'signalType';
-  const startTime = 100;
-  const endTime = 1000;
-  const events = [
+  const file1Time = 1000
+  const file2Time = 2000
+  const events1 = [
     {
-      epochTimeMilliSec: startTime,
+      epochTimeMilliSec: file1Time,
       eventFoo: 'first',
     },
     {
-      epochTimeMilliSec: startTime + 1,
+      epochTimeMilliSec: file1Time + 1,
       eventFoo: 'second',
     },
     {
-      epochTimeMilliSec: startTime + 2,
+      epochTimeMilliSec: file1Time + 2,
       eventFoo: 'third',
     },
   ];
 
+  const events2 = [
+    {
+      epochTimeMilliSec: file2Time,
+      eventFoo: 'fourth',
+    },
+    {
+      epochTimeMilliSec: file2Time + 1,
+      eventFoo: 'fifth',
+    },
+    {
+      epochTimeMilliSec: file2Time + 2,
+      eventFoo: 'sixth',
+    },
+  ];
 
-  const putResult = await dbInstance.putEvent({
+  const putResult1 = await dbInstance.putEvent({
     id: userId,
     group1: group1,
     group2, group2,
-    epochTimeMilliSec: events[0].epochTimeMilliSec,
-  }, events);
-  t.ok(putResult, 'put result is truthy for an array of events');
+    epochTimeMilliSec: events1[0].epochTimeMilliSec,
+  }, events1);
+  t.ok(putResult1, 'first put result is truthy for an array of events');
 
-  const getResult = await dbInstance.getEvents({
+  const putResult2 = await dbInstance.putEvent({
     id: userId,
     group1: group1,
     group2, group2,
-    startTime: startTime,
-    endTime: endTime,
+    epochTimeMilliSec: events2[0].epochTimeMilliSec,
+  }, events2);
+  t.ok(putResult2, 'second put result is truthy for an array of events');
+
+
+  const spanFileResult = await dbInstance.getEvents({
+    id: userId,
+    group1: group1,
+    group2, group2,
+    startTime: file1Time,   // all elements of the first file
+    endTime: file2Time,     // plus the first element of second file
   });
-  //console.log(getResult);
-  t.equal(getResult.length, 3, 'three events queried, just like what was in the array');
-  t.equal(getResult[1].epochTimeMilliSec, startTime +1 , 'second event time was the same as was put');
-  t.ok(_.isEqual(getResult[2], events[2]), 'event contents queried is same as was put');
+  //console.log(spanFileResult);
+  t.equal(spanFileResult.length, 4, 'four events queried, as the time span is inclusive on both ends');
+  t.equal(spanFileResult[3].epochTimeMilliSec, file2Time, 'timestamp for fourth element is correctly from middle of file');
 
+  const spanMiddleofFilesResult = await dbInstance.getEvents({
+    id: userId,
+    group1: group1,
+    group2, group2,
+    startTime: file1Time + 1,   // the middle and end elements of the first file
+    endTime: file2Time + 1,     // plus the first and second element of second file
+  });
+  console.log(spanMiddleofFilesResult);
+  t.equal(spanMiddleofFilesResult.length, 4, 'four events queried from middle of 2 files');
+  t.equal(spanMiddleofFilesResult[0].epochTimeMilliSec, file1Time + 1, 'timestamp for 1st element is correct from middle of file1');
+  t.equal(spanMiddleofFilesResult[3].epochTimeMilliSec, file2Time + 1, 'timestamp for 4th element is correct from middle of file2');
 
 });

@@ -109,9 +109,10 @@ FsTimeSeriesDB.getEvents = async function(key) {
   const files = await fs.readdir(filePath);
   console.log(files);
 
+  const MAX_PRIOR_TIMEWINDOW = 129600 * 1000;  // 1.5 day maximum time window back search
   const uncompressedEvents = await Promise.map(files, async (filename) => {
     const time = filename.substr(0, filename.indexOf('.'));
-    if (time >= key.startTime && time <= key.endTime) {
+    if (time >= (key.startTime - MAX_PRIOR_TIMEWINDOW)  && time <= key.endTime) {
       const data = await fs.readFile(`${filePath}/${filename}`);
       if (data) {
         const eventUnzipped = await ungzip(data);
@@ -128,8 +129,10 @@ FsTimeSeriesDB.getEvents = async function(key) {
     // flatten multiple array results down to one big array
     if (Array.isArray(el.event)) {
       // @see https://stackoverflow.com/questions/10865025/merge-flatten-an-array-of-arrays
-      //Array.prototype.push.apply(acc, el)
-      return acc.concat(el.event);
+      return acc.concat(el.event.filter(innerEl  => {
+        // filter out any elements of this array that aren't in the requested time window
+        return (innerEl.epochTimeMilliSec >= key.startTime && innerEl.epochTimeMilliSec <= key.endTime);
+      }));
     } else {
       acc.push(el.event);
     }
