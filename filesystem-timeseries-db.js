@@ -109,10 +109,17 @@ FsTimeSeriesDB.getEvents = async function(key) {
   const files = await fs.readdir(filePath);
   console.log(files);
 
-  const MAX_PRIOR_TIMEWINDOW = 129600 * 1000;  // 1.5 day maximum time window back search
-  const uncompressedEvents = await Promise.map(files, async (filename) => {
+  const uncompressedEvents = await Promise.map(files, async (filename, idx, len) => {
     const time = filename.substr(0, filename.indexOf('.'));
-    if (time >= (key.startTime - MAX_PRIOR_TIMEWINDOW)  && time <= key.endTime) {
+    let nextTime = Number.MIN_SAFE_INTEGER;
+    const nextIdx = idx + 1;
+    if (nextIdx < len) {
+      // some of the data may be in this file if the next file starts later than the startTime queried
+      const nextFilename = files[nextIdx];
+      nextTime = nextFilename.substr(0, nextFilename.indexOf('.'));
+    }
+    if ((time >= (key.startTime)  && time <= key.endTime) ||  
+        (nextTime > key.startTime)) {
       const data = await fs.readFile(`${filePath}/${filename}`);
       if (data) {
         const eventUnzipped = await ungzip(data);
