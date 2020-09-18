@@ -205,6 +205,58 @@ FsTimeSeriesDB.getFileTimes = function(filename) {
   return [ firstTime, lastTime ];
 };
 
+/**
+ * @brief removes all data for all years for a key
+ *
+ * @returns the number of directories deleted
+ *
+ */
+FsTimeSeriesDB.removeData = async function(key) {
+  this.verifyOptions(this.options);
+  assert(key, 'key required');
+  assert(key.id, 'key.id required');
+  assert(key.group1, 'key.group1 required');
+  assert(key.group2, 'key.group2 required');
+
+  const rootPath= `${this.options.rootPath}/`;
+  let yearDirs = await fs.readdir(rootPath);
+  
+  const removeData = await Promise.map(yearDirs, async (year) => {
+    //console.log(`---year ${year}`);
+    const filePath = this.getYearPath(key, year);
+    //console.log(filePath);
+
+    // https://stackoverflow.com/questions/4482686/check-synchronously-if-file-directory-exists-in-node-js
+    // yes they throw for a standard use case.  Ugh.
+    let exists = false;
+    try {
+      await fs.access(filePath);
+      exists = true;
+    } catch (err) {
+      exists = false;
+    }
+
+    if (exists) {
+      // XXX Requires node ^v12.10.0
+      // may have to use @see https://stackoverflow.com/questions/18052762/remove-directory-which-is-not-empty
+      console.log(`removing directory ${filePath}`);
+      await fs.rmdir(filePath, { 
+        recursive: true,
+        maxRetries: 3,
+        retryDelay: 100,
+      });
+      return true;
+    }
+    return false;
+  });
+  //console.log(removeData);
+
+  const result = removeData.filter(v => v).length;
+  //console.log(result);
+  return result;
+};
+
+
 
 /**
  * @brief return the earliest and  the latest time of the latest item in the time series efficiently
@@ -216,15 +268,19 @@ FsTimeSeriesDB.getTimeSpan = async function(key) {
   assert(key.id, 'key.id required');
   assert(key.group1, 'key.group1 required');
   assert(key.group2, 'key.group2 required');
+  const result = { 
+    earliest: Number.MAX_SAFE_INTEGER, 
+    latest: Number.MIN_SAFE_INTEGER,
+  };
 
-  let filePath = `${this.options.rootPath}/`;
+  const rootPath = `${this.options.rootPath}/`;
 
-  let yearDirs = await fs.readdir(filePath);
+  let yearDirs = await fs.readdir(rootPath);
   yearDirs = yearDirs.sort();
   //console.log(yearDirs);
-  
+
   const existsForYears = await Promise.map(yearDirs, async (year) => {
-    filePath = this.getYearPath(key, year);
+    const filePath = this.getYearPath(key, year);
     //console.log(filePath);
 
     // https://stackoverflow.com/questions/4482686/check-synchronously-if-file-directory-exists-in-node-js
@@ -239,35 +295,38 @@ FsTimeSeriesDB.getTimeSpan = async function(key) {
     //console.log(exists);
     return exists;
   });
+
   //console.log(existsForYears);
-  const earliestYearIdx = existsForYears.findIndex(el => { return el; });
-  const latestYearIdx = existsForYears.length - 1 -  existsForYears.reverse().findIndex(el => { return el; });
-  
-  const filePathEarliest = this.getYearPath(key, yearDirs[earliestYearIdx]);
-  const filePathLatest = this.getYearPath(key, yearDirs[latestYearIdx]);
 
-  const earliestAndLatestPaths = [ filePathEarliest, filePathLatest ];
-  console.log(earliestAndLatestPaths);
+  if (existsForYears.findIndex(el => { return el; }) >= 0) {
+    //console.log(existsForYears);
+    const earliestYearIdx = existsForYears.findIndex(el => { return el; });
+    //console.log(earliestYearIdx);
+    const latestYearIdx = existsForYears.length - 1 -  existsForYears.reverse().findIndex(el => { return el; });
+    //console.log(latestYearIdx);
 
-  // kind of gross but we have to go in parallel
-  const earliestAndLatestFiles = await Promise.map(earliestAndLatestPaths, async (path) => {
-    let theseFiles = await fs.readdir(path);
-    theseFiles = theseFiles.sort();
-    return theseFiles;
-  });
-  
-  const result = { 
-    earliest: Number.MAX_SAFE_INTEGER, 
-    latest: Number.MIN_SAFE_INTEGER,
-  };
-  if (earliestAndLatestFiles[0].length > 0) {
-    const fileTimes = this.getFileTimes(earliestAndLatestFiles[0][0]);
-    result.earliest = fileTimes[0];
-  }
-  if (earliestAndLatestFiles[1].length > 0) {
-    const fileTimes = this.getFileTimes(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
-    result.latest = fileTimes[1];
-  }
+    const filePathEarliest = this.getYearPath(key, yearDirs[earliestYearIdx]);
+    const filePathLatest = this.getYearPath(key, yearDirs[latestYearIdx]);
+
+    const earliestAndLatestPaths = [ filePathEarliest, filePathLatest ];
+    //console.log(earliestAndLatestPaths);
+
+    // kind of gross but we have to go in parallel
+    const earliestAndLatestFiles = await Promise.map(earliestAndLatestPaths, async (path) => {
+      let theseFiles = await fs.readdir(path);
+      theseFiles = theseFiles.sort();
+      return theseFiles;
+    });
+
+    if (earliestAndLatestFiles[0].length > 0) {
+      const fileTimes = this.getFileTimes(earliestAndLatestFiles[0][0]);
+      result.earliest = fileTimes[0];
+    }
+    if (earliestAndLatestFiles[1].length > 0) {
+      const fileTimes = this.getFileTimes(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
+      result.latest = fileTimes[1];
+    }
+  } 
   return result;
  
 };
