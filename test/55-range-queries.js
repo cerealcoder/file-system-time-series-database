@@ -11,7 +11,7 @@ const FsTimeSeriesDB = require('../filesystem-timeseries-db');
 const rootPath = 'test/output';
 
 
-test('put and get a multiple time series events at the same time', async function(t) {
+test('put and get multiple time series events at the same time', async function(t) {
   const dbInstance = Object.create(FsTimeSeriesDB).setOptions({rootPath: rootPath});
 
   const userId = random.string(16);
@@ -56,7 +56,7 @@ test('put and get a multiple time series events at the same time', async functio
 
 });
 
-test('put and get a multiple time series events at different times', async function(t) {
+test('put and get multiple time series events at different times', async function(t) {
   const dbInstance = Object.create(FsTimeSeriesDB).setOptions({rootPath: rootPath});
 
   const userId = random.string(16);
@@ -110,14 +110,27 @@ test('put and get a multiple time series events at different times', async funct
     startTime: startTime,
     endTime: startTime,
   });
-  t.equal(getResult2.length, 1, 'two items put, queried one by time range');
-  t.equal(getResult2[0].epochTimeMilliSec, startTime , 'event time was the same as was put');
-  t.ok(_.isEqual(getResult2[0], event1), 'event contents queried is same as was put');
+  t.equal(getResult2.length, 1, 'two items put, queried one by start time');
+  t.equal(getResult2[0].epochTimeMilliSec, startTime , 'event time was the same as startTime');
+  t.ok(_.isEqual(getResult2[0], event1), 'event contents queried is same as event2');
+
+  const getResult3 = await dbInstance.getEvents({
+    id: userId,
+    group1: group1,
+    group2, group2,
+    startTime: startTime+1,
+    endTime: endTime,
+  });
+  console.log(getResult3);
+  t.equal(getResult3.length, 1, 'two items put, queried the very last one');
+  t.equal(getResult3[0].epochTimeMilliSec, startTime+1, 'event time was the same as the last event put');
+  t.ok(_.isEqual(getResult3[0], event2), 'event contents queried is same as event2');
+
 
 
 });
 
-test('Make sure we can query data points at the end of files', async function(t) {
+test('Make sure we can put and query arrays of events and query various spans of files', async function(t) {
   const dbInstance = Object.create(FsTimeSeriesDB).setOptions({rootPath: rootPath});
 
   const userId = random.string(16);
@@ -171,6 +184,25 @@ test('Make sure we can query data points at the end of files', async function(t)
   }, events2);
   t.ok(putResult2, 'second put result is truthy for an array of events');
 
+  const firstFileResult = await dbInstance.getEvents({
+    id: userId,
+    group1: group1,
+    group2, group2,
+    startTime: file1Time,       // all elements of the first file
+    endTime: file1Time + 2,     // all elements of the first file
+  });
+  t.equal(firstFileResult.length, 3, 'three events queried, all from the first file');
+  t.equal(firstFileResult[2].epochTimeMilliSec, file1Time + 2, 'timestamp for third element is correctly for end of first file');
+
+  const secondFileResult = await dbInstance.getEvents({
+    id: userId,
+    group1: group1,
+    group2, group2,
+    startTime: file2Time,       // all elements of the first file
+    endTime: file2Time + 2,     // all elements of the first file
+  });
+  t.equal(secondFileResult.length, 3, 'three events queried, all from the second file');
+  t.equal(secondFileResult[2].epochTimeMilliSec, file2Time + 2, 'timestamp for third element is correctly for end of first file');
 
   const spanFileResult = await dbInstance.getEvents({
     id: userId,
@@ -190,7 +222,7 @@ test('Make sure we can query data points at the end of files', async function(t)
     startTime: file1Time + 1,   // the middle and end elements of the first file
     endTime: file2Time + 1,     // plus the first and second element of second file
   });
-  console.log(spanMiddleofFilesResult);
+  //console.log(spanMiddleofFilesResult);
   t.equal(spanMiddleofFilesResult.length, 4, 'four events queried from middle of 2 files');
   t.equal(spanMiddleofFilesResult[0].epochTimeMilliSec, file1Time + 1, 'timestamp for 1st element is correct from middle of file1');
   t.equal(spanMiddleofFilesResult[3].epochTimeMilliSec, file2Time + 1, 'timestamp for 4th element is correct from middle of file2');
