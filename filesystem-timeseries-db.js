@@ -205,28 +205,6 @@ FsTimeSeriesDB.getFileTimes = function(filename) {
   return [ firstTime, lastTime ];
 };
 
-/**
- * @brief return the time of the latest item in the time series efficiently
- *
- */
-FsTimeSeriesDB.getLatestTime = async function(key) {
-
-  const span = await this.getTimeSpan(key);
-  return span[1];
- 
-};
-
-/**
- * @brief return the time of the latest item in the time series efficiently
- *
- */
-FsTimeSeriesDB.getEarliestTime = async function(key) {
-
-  const span = await this.getTimeSpan(key);
-  return span[0];
- 
-};
-
 
 /**
  * @brief return the earliest and  the latest time of the latest item in the time series efficiently
@@ -278,14 +256,17 @@ FsTimeSeriesDB.getTimeSpan = async function(key) {
     return theseFiles;
   });
   
-  const result = [ Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER ];
+  const result = { 
+    earliest: Number.MAX_SAFE_INTEGER, 
+    latest: Number.MIN_SAFE_INTEGER,
+  };
   if (earliestAndLatestFiles[0].length > 0) {
     const fileTimes = this.getFileTimes(earliestAndLatestFiles[0][0]);
-    result[0] = fileTimes[0];
+    result.earliest = fileTimes[0];
   }
   if (earliestAndLatestFiles[1].length > 0) {
     const fileTimes = this.getFileTimes(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
-    result[1] = fileTimes[1];
+    result.latest = fileTimes[1];
   }
   return result;
  
@@ -293,10 +274,25 @@ FsTimeSeriesDB.getTimeSpan = async function(key) {
 
 
 /**
- * @brief return the time of the earliest item in the time series efficiently
+ * @brief return the time of the latest item in the time series efficiently
+ *
+ */
+FsTimeSeriesDB.getLatestTime = async function(key) {
+
+  const span = await this.getTimeSpan(key);
+  return span.latest;
+ 
+};
+
+/**
+ * @brief return the time of the latest item in the time series efficiently
  *
  */
 FsTimeSeriesDB.getEarliestTime = async function(key) {
-  return FsTimeSeriesDB.getDateExtreme(key, true);
-}
+
+  const span = await this.getTimeSpan(key);
+  return span.earliest;
+ 
+};
+
 

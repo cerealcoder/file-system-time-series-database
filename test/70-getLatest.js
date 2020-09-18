@@ -106,8 +106,8 @@ test('Should be able to return the latest entry for an id', async function(t) {
     group2, group2,
   });
   console.log(timeSpan);
-  t.equal(timeSpan[0], file1Time, 'earliest Time matches the first entry we put in');
-  t.equal(timeSpan[1], file2Time + 9, 'latest Time matches the last entry we put in');
+  t.equal(timeSpan.earliest, file1Time, 'earliest Time matches the first entry we put in');
+  t.equal(timeSpan.latest, file2Time + 9, 'latest Time matches the last entry we put in');
 
 
 });
