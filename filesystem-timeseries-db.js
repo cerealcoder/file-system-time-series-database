@@ -206,30 +206,49 @@ FsTimeSeriesDB.getFileTimes = function(filename) {
 };
 
 /**
- * @brief return latest item in the time series efficiently, we hope
+ * @brief return the time of the latest item in the time series efficiently
  *
- * XXX this is kind of gross as every file is listed so it's effectively O(n) with n files for that user
- * A better way to do this would be to do a parallel fs.stat or fs.access on the dir and when the 
- * correct dir is found then do an O(m) pull on just that one year's worth data for that user
  */
 FsTimeSeriesDB.getLatestTime = async function(key) {
+
+  const span = await this.getTimeSpan(key);
+  return span[1];
+ 
+};
+
+/**
+ * @brief return the time of the latest item in the time series efficiently
+ *
+ */
+FsTimeSeriesDB.getEarliestTime = async function(key) {
+
+  const span = await this.getTimeSpan(key);
+  return span[0];
+ 
+};
+
+
+/**
+ * @brief return the earliest and  the latest time of the latest item in the time series efficiently
+ *
+ */
+FsTimeSeriesDB.getTimeSpan = async function(key) {
   this.verifyOptions(this.options);
   assert(key, 'key required');
   assert(key.id, 'key.id required');
   assert(key.group1, 'key.group1 required');
   assert(key.group2, 'key.group2 required');
 
-  // find the latest year
   let filePath = `${this.options.rootPath}/`;
-  //console.log(filePath);
 
   let yearDirs = await fs.readdir(filePath);
-  yearDirs = yearDirs.sort().reverse();
+  yearDirs = yearDirs.sort();
   //console.log(yearDirs);
   
   const existsForYears = await Promise.map(yearDirs, async (year) => {
     filePath = this.getYearPath(key, year);
     //console.log(filePath);
+
     // https://stackoverflow.com/questions/4482686/check-synchronously-if-file-directory-exists-in-node-js
     // yes they throw for a standard use case.  Ugh.
     let exists = false;
@@ -243,19 +262,41 @@ FsTimeSeriesDB.getLatestTime = async function(key) {
     return exists;
   });
   //console.log(existsForYears);
-  // since we reverse sorted the array above  can just grab the first true result
-  const latestYearIdx = existsForYears.findIndex(el => { return el; });
+  const earliestYearIdx = existsForYears.findIndex(el => { return el; });
+  const latestYearIdx = existsForYears.length - 1 -  existsForYears.reverse().findIndex(el => { return el; });
   
-  filePath = this.getYearPath(key, yearDirs[latestYearIdx]);
-  let latestFiles = await fs.readdir(filePath);
-  latestFiles = latestFiles.sort();
+  const filePathEarliest = this.getYearPath(key, yearDirs[earliestYearIdx]);
+  const filePathLatest = this.getYearPath(key, yearDirs[latestYearIdx]);
+
+  const earliestAndLatestPaths = [ filePathEarliest, filePathLatest ];
+  console.log(earliestAndLatestPaths);
+
+  // kind of gross but we have to go in parallel
+  const earliestAndLatestFiles = await Promise.map(earliestAndLatestPaths, async (path) => {
+    let theseFiles = await fs.readdir(path);
+    theseFiles = theseFiles.sort();
+    return theseFiles;
+  });
   
-  let result = 0;
-  if (latestFiles.length > 0) {
-    const fileTimes = this.getFileTimes(latestFiles[latestFiles.length-1]);
-    result = fileTimes[1];
+  const result = [ Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER ];
+  if (earliestAndLatestFiles[0].length > 0) {
+    const fileTimes = this.getFileTimes(earliestAndLatestFiles[0][0]);
+    result[0] = fileTimes[0];
+  }
+  if (earliestAndLatestFiles[1].length > 0) {
+    const fileTimes = this.getFileTimes(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
+    result[1] = fileTimes[1];
   }
   return result;
  
 };
+
+
+/**
+ * @brief return the time of the earliest item in the time series efficiently
+ *
+ */
+FsTimeSeriesDB.getEarliestTime = async function(key) {
+  return FsTimeSeriesDB.getDateExtreme(key, true);
+}
 
