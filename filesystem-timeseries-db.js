@@ -81,14 +81,31 @@ FsTimeSeriesDB.putEvent = async function(key, event) {
 
   const filePath = `${this.options.rootPath}/${theDate.getFullYear()}/${key.group1}/${key.group2}/${firstByte}/${secondByte}/${thirdByte}/${key.id}`;
 
-  console.log(filePath);
-  console.log(fileName);
+  //console.log(filePath);
+  //console.log(fileName);
   await mkdirp(filePath);
   await fs.writeFile(`${filePath}/${fileName}`, evtCompressed);
   return true;
 };
 
 
+/**
+ * @brief get a path to a years worth of data files given a key and a year from Date.getFullYear()
+ *
+ */
+FsTimeSeriesDB.getYearPath = function(key, year) {
+  assert(key, 'key required');
+  assert(key.id, 'key.id required');
+  assert(key.group1, 'key.group1 required');
+  assert(key.group2, 'key.group2 required');
+  assert(year, 'year of format Javascript Date.getFullYear  is required');
+
+  const firstByte = key.id.substring(0,2);
+  const secondByte = key.id.substring(2,4);
+  const thirdByte = key.id.substring(4,6);
+  const filePath = `${this.options.rootPath}/${year}/${key.group1}/${key.group2}/${firstByte}/${secondByte}/${thirdByte}/${key.id}`;
+  return filePath;
+};
 
 /**
  *
@@ -124,10 +141,10 @@ FsTimeSeriesDB.getEvents = async function(key) {
   const yearsUncompressedEvents = await Promise.map(years, async (year) => {
     const filePath = `${this.options.rootPath}/${year}/${key.group1}/${key.group2}/${firstByte}/${secondByte}/${thirdByte}/${key.id}`;
 
-    console.log(filePath);
+    //console.log(filePath);
 
     const files = await fs.readdir(filePath);
-    console.log(files);
+    //console.log(files);
 
     const uncompressedEvents = await Promise.map(files, async (filename) => {
       const fileTimes = filename.substr(0, filename.indexOf('.'));
@@ -178,11 +195,67 @@ FsTimeSeriesDB.getEvents = async function(key) {
   },[]);
 }
 
+/**
+ * @brief get the first and last times from the file name
+ */
+FsTimeSeriesDB.getFileTimes = function(filename) {
+  const fileTimes = filename.substr(0, filename.indexOf('.'));
+  const firstTime = parseInt(fileTimes.substr(0, fileTimes.indexOf('-')));
+  const lastTime = parseInt(fileTimes.substr(fileTimes.indexOf('-')+1, fileTimes.length-1));
+  return [ firstTime, lastTime ];
+};
 
 /**
- * evts input format: {
- *   EpochTimeMilliSec: <number>
- *   event: <JSON string of event>
- * }
-DynamoTimeSeries.putEvents = async function(userId, eventType, evts) {
-*/
+ * @brief return latest item in the time series efficiently, we hope
+ *
+ * XXX this is kind of gross as every file is listed so it's effectively O(n) with n files for that user
+ * A better way to do this would be to do a parallel fs.stat or fs.access on the dir and when the 
+ * correct dir is found then do an O(m) pull on just that one year's worth data for that user
+ */
+FsTimeSeriesDB.getLatestTime = async function(key) {
+  this.verifyOptions(this.options);
+  assert(key, 'key required');
+  assert(key.id, 'key.id required');
+  assert(key.group1, 'key.group1 required');
+  assert(key.group2, 'key.group2 required');
+
+  // find the latest year
+  let filePath = `${this.options.rootPath}/`;
+  //console.log(filePath);
+
+  let yearDirs = await fs.readdir(filePath);
+  yearDirs = yearDirs.sort().reverse();
+  //console.log(yearDirs);
+  
+  const existsForYears = await Promise.map(yearDirs, async (year) => {
+    filePath = this.getYearPath(key, year);
+    //console.log(filePath);
+    // https://stackoverflow.com/questions/4482686/check-synchronously-if-file-directory-exists-in-node-js
+    // yes they throw for a standard use case.  Ugh.
+    let exists = false;
+    try {
+      await fs.access(filePath);
+      exists = true;
+    } catch (err) {
+      exists = false;
+    }
+    //console.log(exists);
+    return exists;
+  });
+  //console.log(existsForYears);
+  // since we reverse sorted the array above  can just grab the first true result
+  const latestYearIdx = existsForYears.findIndex(el => { return el; });
+  
+  filePath = this.getYearPath(key, yearDirs[latestYearIdx]);
+  let latestFiles = await fs.readdir(filePath);
+  latestFiles = latestFiles.sort();
+  
+  let result = 0;
+  if (latestFiles.length > 0) {
+    const fileTimes = this.getFileTimes(latestFiles[latestFiles.length-1]);
+    result = fileTimes[1];
+  }
+  return result;
+ 
+};
+
