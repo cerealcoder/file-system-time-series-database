@@ -6,6 +6,7 @@ const test = _test(tape) // decorate tape
 const Random = require('random-js').Random;
 const random = new Random();
 const _ = require('underscore');
+const Promise = require('bluebird');
 
 const FsTimeSeriesDB = require('../filesystem-timeseries-db');
 const rootPath = 'test/output';
@@ -67,29 +68,24 @@ test('Should be able to return the latest entry for an id', async function(t) {
     },
   ];
 
-  const putResult1 = await dbInstance.putEvent({
-    id: userId,
-    group1: group1,
-    group2, group2,
-    epochTimeMilliSec: events1[0].epochTimeMilliSec,
-  }, events1);
-  t.ok(putResult1, 'first put result is truthy for an array of events');
-
-  const putResult2 = await dbInstance.putEvent({
-    id: userId,
-    group1: group1,
-    group2, group2,
-    epochTimeMilliSec: events2[0].epochTimeMilliSec,
-  }, events2);
-  t.ok(putResult2, 'second put result is truthy for an array of events');
-
-  const putResult3 = await dbInstance.putEvent({
-    id: userId,
-    group1: group1,
-    group2, group2,
-    epochTimeMilliSec: events3[0].epochTimeMilliSec,
-  }, events3);
-  t.ok(putResult3, 'second put result is truthy for an array of events');
+  const putResults1 = await Promise.map(events1, async (el) => {
+    const putResult = await dbInstance.putEvent({
+      id: userId,
+      group1: group1,
+      group2, group2,
+      epochTimeMilliSec: el.epochTimeMilliSec,
+    }, el);
+    t.ok(putResult, 'put result is truthy for an an element of a list of events');
+  });
+  const putResults3 = await Promise.map(events3, async (el) => {
+    const putResult = await dbInstance.putEvent({
+      id: userId,
+      group1: group1,
+      group2, group2,
+      epochTimeMilliSec: el.epochTimeMilliSec,
+    }, el);
+    t.ok(putResult, 'put result is truthy for an an element of a list of events');
+  });
 
 
   const latestTime = await dbInstance.getLatestTime({

@@ -197,11 +197,10 @@ FsTimeSeriesDB.getEvents = async function(key) {
 /**
  * @brief get the first and last times from the file name
  */
-FsTimeSeriesDB.getFileTimes = function(filename) {
-  const fileTimes = filename.substr(0, filename.indexOf('.'));
-  const firstTime = parseInt(fileTimes.substr(0, fileTimes.indexOf('-')));
-  const lastTime = parseInt(fileTimes.substr(fileTimes.indexOf('-')+1, fileTimes.length-1));
-  return [ firstTime, lastTime ];
+FsTimeSeriesDB.getFileTime = function(filename) {
+  const fileTime = filename.substr(0, filename.indexOf('.'));
+  const intTime = parseInt(fileTime);
+  return intTime;
 };
 
 /**
@@ -318,12 +317,10 @@ FsTimeSeriesDB.getTimeSpan = async function(key) {
     });
 
     if (earliestAndLatestFiles[0].length > 0) {
-      const fileTimes = this.getFileTimes(earliestAndLatestFiles[0][0]);
-      result.earliest = fileTimes[0];
+      result.earliest = this.getFileTime(earliestAndLatestFiles[0][0]);
     }
     if (earliestAndLatestFiles[1].length > 0) {
-      const fileTimes = this.getFileTimes(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
-      result.latest = fileTimes[1];
+      result.latest = this.getFileTime(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
     }
   } 
   return result;
