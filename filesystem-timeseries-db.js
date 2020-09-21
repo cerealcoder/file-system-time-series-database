@@ -6,6 +6,8 @@ const {gzip, ungzip} = require('node-gzip');
 const Promise = require('bluebird');
 const fs = require('fs').promises;
 const mkdirp = require('mkdirp');
+const bs = require('binary-search');
+const util = require('util');
 
 const FsTimeSeriesDB = Object.create({});
 exports = module.exports = FsTimeSeriesDB;
@@ -25,17 +27,18 @@ FsTimeSeriesDB.setOptions = function(options) {
 
 FsTimeSeriesDB.verifyOptions = function(options) {
   // mandatory options
-  assert(options.rootPath, 'root path defined');
+  assert(options, 'there must be options set');
+  assert(options.rootPath, 'root path must be defined');
 
   return options;
 };
 
 /**
  * Note:  Events are stored as a file that has epochTimeMillisec as the name of the file.
- * This means you can only *put* about 65000 discrete events per day.
+ * This means you can only *put* about 65000 discrete events per year.
  * Best practice is to write an entire day's worth of data and store it under the first
  * epochTimeMillisec for that day.  This might require *you* to do the read-modify-write 
- * if you can't get data from your data source in one day chunks.
+ * if you can't get data from your data source in chunks when there might be > 64k events/year
  *
  */
 FsTimeSeriesDB.putEvent = async function(key, event) {
@@ -52,32 +55,14 @@ FsTimeSeriesDB.putEvent = async function(key, event) {
   }
   let marshalledEvent =  { event: event, epochTimeMilliSec: event.epochTimeMilliSec };
 
-  let firstTime = event.epochTimeMilliSec;
-  let secondTime = firstTime;
-  if (_.isArray(event)) {
-    // each element of the array must look like
-    // a standardized event so that unmarshalling
-    // of arrays in getEvents works properly
-    const marshalledEvents = event.map(el => {
-      if (el.epochTimeMilliSec === undefined) {
-        el.epochTimeMilliSec = key.epochTimeMilliSec;
-      }
-      return el;
-    }).sort((first, second) => {
-      // the client may not have sorted the array by time, so we will
-      return first.epochTimeMilliSec - second.epochTimeMilliSec;
-    });
-    // marshal same way as solitary event
-    marshalledEvent = { event: marshalledEvents, epochTimeMilliSec: key.epochTimeMilliSec }
-    secondTime = marshalledEvents[marshalledEvents.length-1].epochTimeMilliSec;
-  }
+  let firstTime = key.epochTimeMilliSec;
 
   const evtCompressed = await gzip(JSON.stringify(marshalledEvent));
   const firstByte = key.id.substring(0,2);
   const secondByte = key.id.substring(2,4);
   const thirdByte = key.id.substring(4,6);
   const theDate = new Date(key.epochTimeMilliSec);
-  const fileName = `${firstTime}-${secondTime}.json.gz`;
+  const fileName = `${firstTime}.json.gz`;
 
   const filePath = `${this.options.rootPath}/${theDate.getFullYear()}/${key.group1}/${key.group2}/${firstByte}/${secondByte}/${thirdByte}/${key.id}`;
 
@@ -127,6 +112,7 @@ FsTimeSeriesDB.getEvents = async function(key) {
 
   const firstYear = startDate.getFullYear();
   const secondYear = endDate.getFullYear();
+  // @note fix this some time later
   assert(secondYear - firstYear <= 1, 'queries can only span a total of two years');
   let years = [];
   if (firstYear == secondYear) {
@@ -138,61 +124,74 @@ FsTimeSeriesDB.getEvents = async function(key) {
 
   // fetch each years events
   let filesAccessed = 0;
-  const yearsUncompressedEvents = await Promise.map(years, async (year) => {
-    const filePath = `${this.options.rootPath}/${year}/${key.group1}/${key.group2}/${firstByte}/${secondByte}/${thirdByte}/${key.id}`;
-
+  const yearsFilesArray = await Promise.map(years, async (year) => {
+    const filePath = this.getYearPath(key, year);
     //console.log(filePath);
 
     const files = await fs.readdir(filePath);
     //console.log(files);
 
-    const uncompressedEvents = await Promise.map(files, async (filename) => {
-      const fileTimes = filename.substr(0, filename.indexOf('.'));
-      const firstTime = parseInt(fileTimes.substr(0, fileTimes.indexOf('-')));
-      const lastTime = parseInt(fileTimes.substr(fileTimes.indexOf('-')+1, fileTimes.length-1));
-      //console.log(`--firstTime ${firstTime}`);
-      //console.log(`--lastTime ${lastTime}`);
-      //console.log(`--startTime ${key.startTime}`);
-      //console.log(`--endTime ${key.endTime}`);
-      if ((firstTime >= key.startTime  && firstTime <= key.endTime && lastTime >= key.startTime) ||  
-        (firstTime <= key.startTime && lastTime >= key.startTime)) {
-          const data = await fs.readFile(`${filePath}/${filename}`);
-          filesAccessed++;
-          if (data) {
-            const eventUnzipped = await ungzip(data);
-            return JSON.parse(eventUnzipped);
-          }
-      }
-      return null;
-    }).filter(el => {
-      return (el != null);
+    return files.map(el => {
+      return {
+        filename: el,
+        filepath: filePath,
+      };
     });
-    //console.log(uncompressedEvents);
-    return uncompressedEvents;
   });
-  console.log(`---files accessed = ${filesAccessed}`);
 
-  const uncompressedEvents = yearsUncompressedEvents.reduce((acc, el) => {
-    // @see https://stackoverflow.com/questions/10865025/merge-flatten-an-array-of-arrays
-    return acc.concat(el);
-  },[])
-  //console.log('---');
-  //console.log(uncompressedEvents);
-  //console.log('---');
+  function getFileTime(filename) {
+    return parseInt(filename.substr(0, filename.indexOf('.')));
+  };
+  function fileTimeCompare(first, second) {
+    //console.log(`first ${first}`);
+    //console.log(`second ${second}`);
+    const firstFileTime = isNaN(first)? getFileTime(first.filename) : first;
+    const secondFileTime = isNaN(second)? getFileTime(second.filename) : second;
+    return (firstFileTime - secondFileTime);
+  };
+  const yearsFilesSorted = yearsFilesArray.flat().sort(fileTimeCompare);
+  console.log(yearsFilesSorted);
+  let startIndex = bs(yearsFilesSorted, key.startTime, fileTimeCompare);
+  let endIndex = bs(yearsFilesSorted, key.endTime, fileTimeCompare);
+  // @see https://github.com/darkskyapp/binary-search/issues/1
+  startIndex = startIndex < 0? startIndex * -1 - 1 : startIndex; 
+  endIndex = endIndex < 0? endIndex * -1 - 1 : endIndex; 
 
-  return uncompressedEvents.reduce((acc, el) => {
-    // flatten multiple array results down to one big array
-    if (Array.isArray(el.event)) {
-      // @see https://stackoverflow.com/questions/10865025/merge-flatten-an-array-of-arrays
-      return acc.concat(el.event.filter(innerEl  => {
-        // filter out any elements of this array that aren't in the requested time window
-        return (innerEl.epochTimeMilliSec >= key.startTime && innerEl.epochTimeMilliSec <= key.endTime);
-      }));
-    } else {
-      acc.push(el.event);
+  if (startIndex >= yearsFilesSorted.length) {
+    console.log(`requested time span is beyond existing data, returning empty set`);
+    return [];
+  }
+  if (endIndex < yearsFilesSorted.length){
+    const endIndexFile = yearsFilesSorted[endIndex];
+    const endIndexFileTime = getFileTime(endIndexFile.filename);
+    if (endIndexFileTime < key.startTime) {
+      console.log(`requested time span is before existing data, returning empty set`);
+      return [];
     }
-    return acc;
-  },[]);
+  }
+  const files = yearsFilesSorted.slice(startIndex, endIndex + 1); // slice not inclusive of endIndex
+  console.log(`indexes are ${startIndex} and ${endIndex}`);
+  console.log(`list of files: ${util.inspect(files, false, 4)}`);
+
+  const uncompressedEvents = await Promise.map(files, async (file) => {
+    const data = await fs.readFile(`${file.filepath}/${file.filename}`);
+    filesAccessed++;
+    if (data) {
+      const eventUnzipped = await ungzip(data);
+      const eventMarshalled = JSON.parse(eventUnzipped);
+      if (eventMarshalled.event) {
+        return eventMarshalled.event;
+      } else {
+        return null
+      }
+    }
+    return null;
+  }).filter(el => {
+    return (el != null);
+  });
+  //console.log(uncompressedEvents);
+  console.log(`files accessed: ${filesAccessed}`);
+  return uncompressedEvents;
 }
 
 /**

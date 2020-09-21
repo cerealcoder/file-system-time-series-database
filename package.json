@@ -1,6 +1,6 @@
 {
   "name": "@umlss/filesystem-timeseries-db",
-  "version": "0.0.01",
+  "version": "0.0.02",
   "repository": "https://github.com/cerealcoder/filesystem-timeseries-database",
   "description": "A simple wrapper to set/get time-series data from a file system that is at least NFS v3 compatible",
   "main": "filesystem-timeseries-db.js",
@@ -12,6 +12,7 @@
   "dependencies": {
     "bluebird": "^3.7.2",
     "mkdirp": "^1.0.4",
+    "binary-search": "^1.3.6",
     "node-gzip": "^1.1.2"
   },
   "peerDependencies": {
