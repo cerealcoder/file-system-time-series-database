@@ -128,7 +128,12 @@ FsTimeSeriesDB.getEvents = async function(key) {
     const filePath = this.getYearPath(key, year);
     //console.log(filePath);
 
-    const files = await fs.readdir(filePath);
+    let files = [];;
+    try {
+      files = await fs.readdir(filePath);
+    } catch (e) {
+      // directory doesn't exist, so just ignore
+    }
     //console.log(files);
 
     return files.map(el => {
