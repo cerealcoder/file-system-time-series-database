@@ -155,16 +155,24 @@ FsTimeSeriesDB.getEvents = async function(key) {
     return (firstFileTime - secondFileTime);
   };
   const yearsFilesSorted = yearsFilesArray.flat().sort(fileTimeCompare);
-  console.log(yearsFilesSorted);
+  //console.log(yearsFilesSorted);
   let startIndex = bs(yearsFilesSorted, key.startTime, fileTimeCompare);
   let endIndex = bs(yearsFilesSorted, key.endTime, fileTimeCompare);
   // @see https://github.com/darkskyapp/binary-search/issues/1
   startIndex = startIndex < 0? startIndex * -1 - 1 : startIndex; 
   endIndex = endIndex < 0? endIndex * -1 - 1 : endIndex; 
 
+  // heuristic for no files found is if the file time is less than
+  // a week old then return  last file as the file might contain
+  // data after startTime.  It's a rough heuristic but probably good enough
   if (startIndex >= yearsFilesSorted.length) {
-    console.log(`requested time span is beyond existing data, returning empty set`);
-    return [];
+    if (yearsFilesSorted.length > 0 && 
+      getFileTime(yearsFilesSorted[yearsFilesSorted.length - 1].filename) + 86400 * 1000 * 7  > key.startTime) {
+        startIndex = yearsFilesSorted.length - 1;
+    } else { 
+      console.log(`requested time span is beyond existing data, returning empty set`);
+      return [];
+    }
   }
   if (endIndex < yearsFilesSorted.length){
     const endIndexFile = yearsFilesSorted[endIndex];
