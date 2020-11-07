@@ -186,7 +186,7 @@ FsTimeSeriesDB.getEvents = async function(key) {
   console.log(`indexes are ${startIndex} and ${endIndex}`);
   console.log(`list of files: ${util.inspect(files, false, 4)}`);
 
-  const uncompressedEvents = await Promise.map(files, async (file) => {
+  let uncompressedEvents = await Promise.map(files, async (file) => {
     const data = await fs.readFile(`${file.filepath}/${file.filename}`);
     filesAccessed++;
     if (data) {
@@ -199,9 +199,11 @@ FsTimeSeriesDB.getEvents = async function(key) {
       }
     }
     return null;
-  }).filter(el => {
+  })
+    
+  uncompressedEvents = uncompressedEvents.filter(el => {
     return (el != null);
-  });
+  }).flat();
   //console.log(uncompressedEvents);
   console.log(`files accessed: ${filesAccessed}`);
   return uncompressedEvents;
