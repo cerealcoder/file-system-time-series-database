@@ -34,10 +34,10 @@ FsTimeSeriesDB.verifyOptions = function(options) {
 };
 
 /**
- * Note:  Events are stored as a file that has epochTimeMillisec as the name of the file.
+ * Note:  Events are stored as a file that has epochTimeMilliSec as the name of the file.
  * This means you can only *put* about 65000 discrete events per year.
  * Best practice is to write an entire day's worth of data and store it under the first
- * epochTimeMillisec for that day.  This might require *you* to do the read-modify-write 
+ * epochTimeMilliSec for that day.  This might require *you* to do the read-modify-write 
  * if you can't get data from your data source in chunks when there might be > 64k events/year
  *
  */
@@ -47,13 +47,16 @@ FsTimeSeriesDB.putEvent = async function(key, event) {
   assert(key.id, 'key.id required');
   assert(key.group1, 'key.group1 required');
   assert(key.group2, 'key.group2 required');
-  assert(key.epochTimeMilliSec, 'key.epochTimeMillisec is required');
+  assert(key.epochTimeMilliSec, 'key.epochTimeMilliSec is required');
 
   if (event.epochTimeMilliSec === undefined) {
-    // epochTimeMillisec must be at every level of an event heirarchy
+    // epochTimeMilliSec must be at every level of an event heirarchy
     event.epochTimeMilliSec = key.epochTimeMilliSec;
   }
   let marshalledEvent =  { event: event, epochTimeMilliSec: event.epochTimeMilliSec };
+  if (key.endTimeMilliSec !== undefined) {
+    marshalledEvent.endTimeMilliSec = key.endTimeMilliSec;
+  }
 
   let firstTime = key.epochTimeMilliSec;
 
@@ -195,7 +198,7 @@ FsTimeSeriesDB.getEvents = async function(key) {
       if (eventMarshalled.event) {
         return eventMarshalled.event;
       } else {
-        return null
+        return null;
       }
     }
     return null;
@@ -331,12 +334,30 @@ FsTimeSeriesDB.getTimeSpan = async function(key) {
       return theseFiles;
     });
 
+    let filenameAndPath;
     if (earliestAndLatestFiles[0].length > 0) {
       result.earliest = this.getFileTime(earliestAndLatestFiles[0][0]);
+      filenameAndPath = `${filePathEarliest}/${earliestAndLatestFiles[0][0]}`;
     }
     if (earliestAndLatestFiles[1].length > 0) {
+      filenameAndPath = `${filePathLatest}/${earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]}`;
+    }
+
+    const data = await fs.readFile(filenameAndPath);
+    if (data) {
+      const eventUnzipped = await ungzip(data);
+      const eventMarshalled = JSON.parse(eventUnzipped);
+      if (eventMarshalled.endTimeMilliSec !== undefined) {
+        result.latest = eventMarshalled.endTimeMilliSec;
+      } else {
+        // backward compatability / or best effort
+        result.latest = this.getFileTime(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
+      }
+    } else {
+      // backward compatability / or best effort
       result.latest = this.getFileTime(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
     }
+
   } 
   return result;
  
