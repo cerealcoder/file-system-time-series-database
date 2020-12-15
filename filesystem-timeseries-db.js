@@ -165,12 +165,10 @@ FsTimeSeriesDB.getEvents = async function(key) {
   startIndex = startIndex < 0? startIndex * -1 - 1 : startIndex; 
   endIndex = endIndex < 0? endIndex * -1 - 1 : endIndex; 
 
-  // heuristic for no files found is if the file time is less than
-  // a week old then return  last file as the file might contain
-  // data after startTime.  It's a rough heuristic but probably good enough
+  // heuristic for no files found is just return the prior file if any
+  // because it might contain the relevant data.  It's a rough heuristic but probably good enough
   if (startIndex >= yearsFilesSorted.length) {
-    if (yearsFilesSorted.length > 0 && 
-      getFileTime(yearsFilesSorted[yearsFilesSorted.length - 1].filename) + 86400 * 1000 * 7  > key.startTime) {
+    if (yearsFilesSorted.length > 0) {
         startIndex = yearsFilesSorted.length - 1;
     } else { 
       console.log(`requested time span is beyond existing data, returning empty set`);
