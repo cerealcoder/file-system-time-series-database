@@ -105,3 +105,4 @@ dist
 
 # test data
 test/output/
+test/data/

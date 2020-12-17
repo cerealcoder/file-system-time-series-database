@@ -78,9 +78,9 @@ test('Put data and query at the end', async function(t) {
     endTime: endTime,
   });
   console.log(getResult3);
-  t.equal(getResult3.length, 1, 'two items put, queried the very last one');
-  t.equal(getResult3[0].epochTimeMilliSec, event2.epochTimeMilliSec, 'event time was the same as the last event put');
-  t.ok(_.isEqual(getResult3[0], event2), 'event contents queried is same as event2');
+  t.equal(getResult3.length, 2, 'two items put, queried in middle returns both');
+  t.equal(getResult3[0].epochTimeMilliSec, event1.epochTimeMilliSec, 'event time was the same as the last event put');
+  t.ok(_.isEqual(getResult3[0], event1), 'event contents queried is same as event2');
 
 });
 

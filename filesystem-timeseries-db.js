@@ -162,7 +162,9 @@ FsTimeSeriesDB.getEvents = async function(key) {
   let startIndex = bs(yearsFilesSorted, key.startTime, fileTimeCompare);
   let endIndex = bs(yearsFilesSorted, key.endTime, fileTimeCompare);
   // @see https://github.com/darkskyapp/binary-search/issues/1
-  startIndex = startIndex < 0? startIndex * -1 - 1 : startIndex; 
+  // note we want the item *before* where we would have inserted
+  startIndex = startIndex < 0? startIndex * -1 - 2 : startIndex; 
+  startIndex = startIndex < 0? 0 : startIndex;
   endIndex = endIndex < 0? endIndex * -1 - 1 : endIndex; 
 
   // heuristic for no files found is just return the prior file if any
