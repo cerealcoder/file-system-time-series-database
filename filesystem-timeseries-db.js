@@ -343,22 +343,23 @@ FsTimeSeriesDB.getTimeSpan = async function(key) {
       filenameAndPath = `${filePathLatest}/${earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]}`;
     }
 
-    const data = await fs.readFile(filenameAndPath);
-    if (data) {
-      const eventUnzipped = await ungzip(data);
-      const eventMarshalled = JSON.parse(eventUnzipped);
-      if (eventMarshalled.endTimeMilliSec !== undefined) {
-        result.latest = eventMarshalled.endTimeMilliSec;
+    if (filenameAndPath) {
+      const data = await fs.readFile(filenameAndPath);
+      if (data) {
+        const eventUnzipped = await ungzip(data);
+        const eventMarshalled = JSON.parse(eventUnzipped);
+        if (eventMarshalled.endTimeMilliSec !== undefined) {
+          result.latest = eventMarshalled.endTimeMilliSec;
+        } else {
+          // backward compatability / or best effort
+          result.latest = this.getFileTime(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
+        }
       } else {
         // backward compatability / or best effort
         result.latest = this.getFileTime(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
       }
-    } else {
-      // backward compatability / or best effort
-      result.latest = this.getFileTime(earliestAndLatestFiles[1][earliestAndLatestFiles[1].length-1]);
     }
-
-  } 
+  }
   return result;
  
 };

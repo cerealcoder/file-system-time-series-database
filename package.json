@@ -1,6 +1,6 @@
 {
   "name": "@umlss/filesystem-timeseries-db",
-  "version": "0.0.09",
+  "version": "0.0.10",
   "repository": "https://github.com/cerealcoder/filesystem-timeseries-database",
   "description": "A simple wrapper to set/get time-series data from a file system that is at least NFS v3 compatible",
   "main": "filesystem-timeseries-db.js",
