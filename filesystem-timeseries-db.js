@@ -173,7 +173,7 @@ FsTimeSeriesDB.getEvents = async function(key) {
     if (yearsFilesSorted.length > 0) {
         startIndex = yearsFilesSorted.length - 1;
     } else { 
-      console.log(`requested time span is beyond existing data, returning empty set`);
+      //console.log(`requested time span is beyond existing data, returning empty set`);
       return [];
     }
   }
@@ -181,7 +181,7 @@ FsTimeSeriesDB.getEvents = async function(key) {
     const endIndexFile = yearsFilesSorted[endIndex];
     const endIndexFileTime = getFileTime(endIndexFile.filename);
     if (endIndexFileTime < key.startTime) {
-      console.log(`requested time span is before existing data, returning empty set`);
+      //console.log(`requested time span is before existing data, returning empty set`);
       return [];
     }
   }

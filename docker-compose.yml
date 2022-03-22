@@ -7,3 +7,4 @@ services:
     volumes:
     - $HOME/.aws/:/root/.aws/:ro
     - ./:/home/code/
+    - ${HOME}/.npm/.npmrc:/root/.npmrc/:ro
